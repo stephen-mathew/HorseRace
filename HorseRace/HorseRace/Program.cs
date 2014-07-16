@@ -62,6 +62,7 @@ namespace HorseRace
         static bool _raceStarted;
         static bool _raceStopped;
         static Dictionary<int, Horse> _HorseList;
+        static List<Horse> _Ranking;
 
         //Create the race - inputting the number of horses and race distance
         public static void CreateHorseRace(int NumHorses, int RaceDistMetres)
@@ -71,6 +72,7 @@ namespace HorseRace
             _raceStarted = false;
             _HorseList = new Dictionary<int, Horse>();
             _raceStopped = false;
+            _Ranking = new List<Horse>();
         }
 
         //Start the race. Start threads for each horse in this method
@@ -130,6 +132,7 @@ namespace HorseRace
             string horseStatus;
             string raceStatus;
             int runningHorses = _NumHorses;
+            _Ranking.Clear();
 
             if (!_raceStarted)
             {
@@ -149,7 +152,16 @@ namespace HorseRace
                     if (!horseDisplay._horseRunning)
                     {
                         runningHorses--;
+                        if (!_HorseList[i]._horseKicked)
+                        {
+                            _Ranking.Add(_HorseList[i]);
+                        }
                     }
+
+                    _Ranking.Sort(delegate(Horse h1, Horse h2)
+                    {
+                        return h1.timeTaken.CompareTo(h2.timeTaken);
+                    });
                 }
                 if (runningHorses == 0)
                 {
@@ -179,7 +191,7 @@ namespace HorseRace
                         }
                         else
                         {
-                            Console.WriteLine("horse {0}  [{1}] (Time: {2} seconds)", i, horseStatus, horseDisplay.timeTaken);
+                            Console.WriteLine("horse {0}  [{1}] {2} (Time: {3} seconds)", i, horseStatus, _Ranking.FindIndex(h => h == horseDisplay), horseDisplay.timeTaken);
                         }
                     }
                 }
@@ -198,7 +210,8 @@ namespace HorseRace
                         runningHorses--;
                     }
                 }
-                if (runningHorses == 0)
+               
+                if (runningHorses <= 0)
                 {
                     _raceStopped = true;
                 }
