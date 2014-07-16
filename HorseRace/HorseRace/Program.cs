@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace HorseRace
 {
@@ -59,6 +60,7 @@ namespace HorseRace
         static int _NumHorses;
         public static int _RaceDistMetres;
         static bool _raceStarted;
+        static bool _raceStopped;
         static Dictionary<int, Horse> _HorseList;
 
         //Create the race - inputting the number of horses and race distance
@@ -68,6 +70,7 @@ namespace HorseRace
             _RaceDistMetres = RaceDistMetres;
             _raceStarted = false;
             _HorseList = new Dictionary<int, Horse>();
+            _raceStopped = false;
         }
 
         //Start the race. Start threads for each horse in this method
@@ -85,6 +88,10 @@ namespace HorseRace
                 horseThread.Start();
             }
             _raceStarted = true;
+
+            //Separate thread to continuously check the status of the race
+            new Thread(CheckHorsesStatus).Start();
+
         }
 
         //Stop the race. Stop all the threads if running in this method. Print the appropriate status messages to the console
@@ -94,13 +101,13 @@ namespace HorseRace
             {
                 _HorseList[i].StopHorse();
             }
-            _raceStarted = false;
+            _raceStopped = true;
             Console.WriteLine("All horses have stopped running. The race has been stopped");
         }
 
         public static bool Exit()
         {
-            if (!_raceStarted)
+            if (_raceStopped)
             {
                 return true;
             }
@@ -121,9 +128,13 @@ namespace HorseRace
         {
             Horse horseDisplay;
             string horseStatus;
+            string raceStatus;
+            int runningHorses = _NumHorses;
+
             if (!_raceStarted)
             {
-                Console.WriteLine("Race: Ready to start");
+                raceStatus = "Race: Ready to start";
+                Console.WriteLine(raceStatus);
                 horseStatus = "*".PadRight(_RaceDistMetres, ' ');
                 for (int i = 0; i < _NumHorses; i++)
                 {
@@ -132,13 +143,68 @@ namespace HorseRace
             }
             else
             {
-                Console.WriteLine("In Progress");
+                for (int i = 0; i < _NumHorses; i++)
+                {
+                    horseDisplay = _HorseList[i];
+                    if (!horseDisplay._horseRunning)
+                    {
+                        runningHorses--;
+                    }
+                }
+                if (runningHorses == 0)
+                {
+                    raceStatus = "Race: Completed! - Final standings:-";
+                }
+                else
+                {
+                    raceStatus = "In Progress";
+                }
+                Console.WriteLine(raceStatus);
                 for (int i = 0; i < _NumHorses; i++)
                 {
                     horseDisplay = _HorseList[i];
                     horseStatus = "".PadRight(horseDisplay._HorseDist, '*');
                     horseStatus = horseStatus.PadRight(_RaceDistMetres, ' ');
-                    Console.WriteLine("horse {0}  [{1}]", i, horseStatus);
+                    if (horseDisplay._horseRunning)
+                    {
+                        Console.WriteLine("horse {0}  [{1}]", i, horseStatus);
+                    }
+                    else
+                    {
+                        if (horseDisplay._horseKicked)
+                        {
+                            horseStatus = "".PadRight(horseDisplay._HorseDist, '*') + "k";
+                            horseStatus = horseStatus.PadRight(_RaceDistMetres, ' ');
+                            Console.WriteLine("horse {0}  [{1}] Stopped running after {2} seconds", i, horseStatus, horseDisplay.timeTaken);
+                        }
+                        else
+                        {
+                            Console.WriteLine("horse {0}  [{1}] (Time: {2} seconds)", i, horseStatus, horseDisplay.timeTaken);
+                        }
+                    }
+                }
+            }
+        }
+
+        public static void CheckHorsesStatus()
+        {
+            int runningHorses = _NumHorses;
+            while (!_raceStopped)
+            {
+                for (int i = 0; i < _NumHorses; i++)
+                {
+                    if (!_HorseList[i]._horseRunning)
+                    {
+                        runningHorses--;
+                    }
+                }
+                if (runningHorses == 0)
+                {
+                    _raceStopped = true;
+                }
+                else
+                {
+                    Thread.Sleep(1000);
                 }
             }
         }
@@ -151,6 +217,8 @@ namespace HorseRace
         public Random _LeapMetre { get; private set; }
         public bool _horseKicked { get; private set; }
         public bool _horseRunning { get; private set; }
+        public int timeTaken { get; private set; }
+        Stopwatch timeMeasure;
 
         public Horse(int HorseID)
         {
@@ -159,39 +227,47 @@ namespace HorseRace
             this._horseKicked = false;
             this._LeapMetre = new Random();
             this._horseRunning = true;
+            this.timeMeasure = new Stopwatch();
         }
 
         //This method has to continuosly run for the horse threads, until KickHorse 
         public void HorseRunning()
         {
             int nextLeap = _LeapMetre.Next(1, 9);
+            this.timeMeasure.Start();
 
-            while((this._HorseDist + nextLeap) <= HorseRace._RaceDistMetres)
+            while (((this._HorseDist + nextLeap) < HorseRace._RaceDistMetres) && this._horseRunning)
             {
                 this._HorseDist += nextLeap;
                 //Console.WriteLine("Thread num {0} and horse distance {1} and horse num {2}", Thread.CurrentThread.Name, this._HorseDist, this._HorseID);
                 Thread.Sleep(1000);
+                nextLeap = this._LeapMetre.Next(1, 9);
             }
+            if ((this._HorseDist < HorseRace._RaceDistMetres) && this._horseRunning)
+            {
+                this._HorseDist = HorseRace._RaceDistMetres;
+            }
+            this.StopHorse();
         }
 
         public void KickHorse()
         {
-            if (!_horseKicked)
+            if (!this._horseKicked)
             {
-                //Thread.CurrentThread.Abort();
-                _horseKicked = true;
+                this._horseKicked = true;
                 Console.WriteLine("Horse {0} has been kicked!", this._HorseID);
-                StopHorse();
+                this.StopHorse();
             }
         }
 
         public void StopHorse()
         {
-            if (_horseRunning)
+            if (this._horseRunning)
             {
                 //Thread.CurrentThread.Abort();
-                _horseRunning = false;
-                Console.WriteLine("horse {0} stopped running", this._HorseID);
+                this._horseRunning = false;
+                this.timeMeasure.Stop();
+                this.timeTaken = (int)timeMeasure.Elapsed.TotalSeconds;
             }
         }
     }
