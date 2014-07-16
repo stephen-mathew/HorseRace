@@ -11,33 +11,67 @@ namespace HorseRace
     {
         static void Main(string[] args)
         {
+            CommandAnalyzer();
         }
 
-        //Create a Horse race object
-        public void CreateRace(int NumHorses, int RaceDistMetres)
+        static void CommandAnalyzer()
         {
-            HorseRace horseRace = new HorseRace(NumHorses, RaceDistMetres);
+            bool _ExitProgram = false;
+            do
+            {
+                Console.WriteLine("Enter command: ");
+                string[] args = Console.ReadLine().Split(' ');
+
+                //Logic to execute the correct command
+                switch (args[0])
+                {
+                    case "create":
+                        HorseRace.CreateHorseRace(Convert.ToInt32(args[2]), Convert.ToInt32(args[3]));
+                        break;
+
+                    case "start":
+                        HorseRace.Start();
+                        break;
+
+                    case "kick":
+                        HorseRace.KickHorse(Int32.Parse(args[2]));
+                        break;
+
+                    case "stop":
+                        HorseRace.Stop();
+                        break;
+
+                    case "exit":
+                        _ExitProgram = HorseRace.Exit();
+                        break;
+
+                    case "show":
+                        HorseRace.Show();
+                        break;
+
+                }
+            } while (!_ExitProgram);
         }
     }
 
-    class HorseRace
+    static class HorseRace
     {
-        int _NumHorses;
-        int _RaceDistMetres;
-        bool _raceStarted;
-        Dictionary<int, Horse> _HorseList;
+        static int _NumHorses;
+        public static int _RaceDistMetres;
+        static bool _raceStarted;
+        static Dictionary<int, Horse> _HorseList;
 
         //Create the race - inputting the number of horses and race distance
-        public HorseRace(int NumHorses, int RaceDistMetres)
+        public static void CreateHorseRace(int NumHorses, int RaceDistMetres)
         {
-            this._NumHorses = NumHorses;
-            this._RaceDistMetres = RaceDistMetres;
-            this._raceStarted = false;
+            _NumHorses = NumHorses;
+            _RaceDistMetres = RaceDistMetres;
+            _raceStarted = false;
             _HorseList = new Dictionary<int, Horse>();
         }
 
         //Start the race. Start threads for each horse in this method
-        public void Start()
+        public static void Start()
         {
             Horse horse;
             Thread horseThread;
@@ -47,13 +81,14 @@ namespace HorseRace
                 horse = new Horse(i);
                 _HorseList.Add(i, horse);
                 horseThread = new Thread(horse.HorseRunning);
+                horseThread.Name = i.ToString();
                 horseThread.Start();
             }
             _raceStarted = true;
         }
 
         //Stop the race. Stop all the threads if running in this method. Print the appropriate status messages to the console
-        public void Stop()
+        public static void Stop()
         {
             for (int i = 0; i < _NumHorses; i++)
             {
@@ -63,37 +98,47 @@ namespace HorseRace
             Console.WriteLine("All horses have stopped running. The race has been stopped");
         }
 
-        public void Exit()
+        public static bool Exit()
         {
             if (!_raceStarted)
             {
-                //exit the program
+                return true;
             }
             else
             {
                 Console.WriteLine("You cannot exit if a race is going on. You have to first stop the race.");
+                return false;
             }
         }
 
-        public void KickHorse(int HorseID)
+        public static void KickHorse(int HorseID)
         {
             Horse horseToBeKicked = _HorseList[HorseID];
             horseToBeKicked.KickHorse();
         }
 
-        public void Show()
+        public static void Show()
         {
             Horse horseDisplay;
+            string horseStatus;
             if (!_raceStarted)
             {
                 Console.WriteLine("Race: Ready to start");
-
+                horseStatus = "*".PadRight(_RaceDistMetres, ' ');
+                for (int i = 0; i < _NumHorses; i++)
+                {
+                    Console.WriteLine("horse {0}  [{1}]", i, horseStatus);
+                }
             }
             else
             {
+                Console.WriteLine("In Progress");
                 for (int i = 0; i < _NumHorses; i++)
                 {
                     horseDisplay = _HorseList[i];
+                    horseStatus = "".PadRight(horseDisplay._HorseDist, '*');
+                    horseStatus = horseStatus.PadRight(_RaceDistMetres, ' ');
+                    Console.WriteLine("horse {0}  [{1}]", i, horseStatus);
                 }
             }
         }
@@ -119,8 +164,14 @@ namespace HorseRace
         //This method has to continuosly run for the horse threads, until KickHorse 
         public void HorseRunning()
         {
-            this._HorseDist += _LeapMetre.Next(1, 9);
-            Thread.Sleep(1000);
+            int nextLeap = _LeapMetre.Next(1, 9);
+
+            while((this._HorseDist + nextLeap) <= HorseRace._RaceDistMetres)
+            {
+                this._HorseDist += nextLeap;
+                //Console.WriteLine("Thread num {0} and horse distance {1} and horse num {2}", Thread.CurrentThread.Name, this._HorseDist, this._HorseID);
+                Thread.Sleep(1000);
+            }
         }
 
         public void KickHorse()
