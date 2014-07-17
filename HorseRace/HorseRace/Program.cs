@@ -63,6 +63,7 @@ namespace HorseRace
         static bool _raceStopped;
         static Dictionary<int, Horse> _HorseList;
         static List<Horse> _Ranking;
+        static List<Horse> _SpeedRanking;
 
         //Create the race - inputting the number of horses and race distance
         public static void CreateHorseRace(int NumHorses, int RaceDistMetres)
@@ -73,6 +74,7 @@ namespace HorseRace
             _HorseList = new Dictionary<int, Horse>();
             _raceStopped = false;
             _Ranking = new List<Horse>();
+            _SpeedRanking = new List<Horse>();
         }
 
         //Start the race. Start threads for each horse in this method
@@ -133,7 +135,12 @@ namespace HorseRace
             string raceStatus;
             int runningHorses = _NumHorses;
             _Ranking.Clear();
+            _SpeedRanking.Clear();
+            float averageSpeed = 0;
+            string aboveAverageHorses = String.Empty;
+            int aboveAverageHorseCount = 0;
 
+            //Displaying results before the race has started
             if (!_raceStarted)
             {
                 raceStatus = "Race: Ready to start";
@@ -144,25 +151,41 @@ namespace HorseRace
                     Console.WriteLine("horse {0}  [{1}]", i, horseStatus);
                 }
             }
+            // Calculating the ranking and speed of the horses who've currently completed and displaying results of in progress or completed races
             else
             {
+                //Adding completed horses and complated+stopped horses to separate lists for later ranking 
                 for (int i = 0; i < _NumHorses; i++)
                 {
                     horseDisplay = _HorseList[i];
                     if (!horseDisplay._horseRunning)
                     {
                         runningHorses--;
-                        if (!_HorseList[i]._horseKicked)
+                        if (!horseDisplay._horseKicked)
                         {
-                            _Ranking.Add(_HorseList[i]);
+                            _Ranking.Add(horseDisplay);
                         }
+                        _SpeedRanking.Add(horseDisplay);
+                        averageSpeed += horseDisplay._horseSpeed;
                     }
-
-                    _Ranking.Sort(delegate(Horse h1, Horse h2)
-                    {
-                        return h1.timeTaken.CompareTo(h2.timeTaken);
-                    });
                 }
+
+                // Sorting all completed horses according to time taken
+                _Ranking.Sort(delegate(Horse h1, Horse h2)
+                {
+                    return h1._timeTaken.CompareTo(h2._timeTaken);
+                });
+
+                // Sorting all completed and stopped horses according to speeds
+                _SpeedRanking.Sort(delegate(Horse h1, Horse h2)
+                {
+                    return h1._horseSpeed.CompareTo(h2._horseSpeed);
+                });
+
+                //Calculating average speed of completed/stopped horses
+                averageSpeed = averageSpeed / _SpeedRanking.Count;
+
+                // Checking if race is in progress or completed
                 if (runningHorses == 0)
                 {
                     raceStatus = "Race: Completed! - Final standings:-";
@@ -172,27 +195,59 @@ namespace HorseRace
                     raceStatus = "In Progress";
                 }
                 Console.WriteLine(raceStatus);
+
+                // Displaying the results for each horse
                 for (int i = 0; i < _NumHorses; i++)
                 {
                     horseDisplay = _HorseList[i];
+
+                    //Adding the number of * to display the distance covered
                     horseStatus = "".PadRight(horseDisplay._HorseDist, '*');
+
+                    //Adding spaces to show the completion status of the horse
                     horseStatus = horseStatus.PadRight(_RaceDistMetres, ' ');
+
+                    //Displaying the result for a running horse
                     if (horseDisplay._horseRunning)
                     {
                         Console.WriteLine("horse {0}  [{1}]", i, horseStatus);
                     }
+                    //Displaying the result for a completed or kicked horse
                     else
                     {
                         if (horseDisplay._horseKicked)
                         {
                             horseStatus = "".PadRight(horseDisplay._HorseDist, '*') + "k";
                             horseStatus = horseStatus.PadRight(_RaceDistMetres, ' ');
-                            Console.WriteLine("horse {0}  [{1}] Stopped running after {2} seconds", i, horseStatus, horseDisplay.timeTaken);
+                            Console.WriteLine("horse {0}  [{1}] Stopped running after {2} seconds", i, horseStatus, horseDisplay._timeTaken);
                         }
                         else
                         {
-                            Console.WriteLine("horse {0}  [{1}] {2} (Time: {3} seconds)", i, horseStatus, _Ranking.FindIndex(h => h == horseDisplay), horseDisplay.timeTaken);
+                            Console.WriteLine("horse {0}  [{1}] {2} (Time: {3} seconds)", i, horseStatus, (_Ranking.FindIndex(h => h == horseDisplay) + 1), horseDisplay._timeTaken);
                         }
+
+                        //Finding the above average speed horses
+                        if ((float)horseDisplay._horseSpeed > averageSpeed)
+                        {
+                            aboveAverageHorseCount++;
+                            aboveAverageHorses = aboveAverageHorses + horseDisplay._HorseID.ToString() + ", ";
+                        }
+                    }
+                }
+
+                // Displaying the highest,lowest and average speed results if race is completed
+                if (runningHorses == 0)
+                {
+                    Console.WriteLine("Highest speed :- {0} m/s (Horse {1})", _SpeedRanking[_NumHorses - 1]._horseSpeed, _SpeedRanking[_NumHorses - 1]._HorseID);
+                    Console.WriteLine("Lowest speed :-  {0} m/s (Horse {1})", _SpeedRanking[0]._horseSpeed, _SpeedRanking[0]._HorseID);
+                    aboveAverageHorses = aboveAverageHorses.Trim().TrimEnd(',');
+                    if (aboveAverageHorseCount > 0)
+                    {
+                        Console.WriteLine("Average speed:-  {0} m/s (Horses {1} are above average!)", averageSpeed, aboveAverageHorses);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Average speed:-  {0} m/s", averageSpeed);
                     }
                 }
             }
@@ -210,7 +265,7 @@ namespace HorseRace
                         runningHorses--;
                     }
                 }
-               
+
                 if (runningHorses <= 0)
                 {
                     _raceStopped = true;
@@ -230,7 +285,8 @@ namespace HorseRace
         public Random _LeapMetre { get; private set; }
         public bool _horseKicked { get; private set; }
         public bool _horseRunning { get; private set; }
-        public int timeTaken { get; private set; }
+        public int _timeTaken { get; private set; }
+        public float _horseSpeed { get; private set; }
         Stopwatch timeMeasure;
 
         public Horse(int HorseID)
@@ -280,7 +336,8 @@ namespace HorseRace
                 //Thread.CurrentThread.Abort();
                 this._horseRunning = false;
                 this.timeMeasure.Stop();
-                this.timeTaken = (int)timeMeasure.Elapsed.TotalSeconds;
+                this._timeTaken = (int)timeMeasure.Elapsed.TotalSeconds;
+                this._horseSpeed = this._HorseDist / this._timeTaken;
             }
         }
     }
